@@ -3,8 +3,8 @@ const http = require("http");
 const { WebSocketServer } = require("ws");
 
 const PORT = process.env.PORT || 8080;
-const MATCH_TIME = 10; // seconds of clicking
-const COUNTDOWN = 3;   // seconds between "ready" and the start
+const MATCH_TIME = 170; // seconds of clicking
+const COUNTDOWN = 10;   // seconds between "ready" and the start
 
 // Plain HTTP answer so the host (and you, in a browser) can check it's alive.
 const server = http.createServer((req, res) => {
