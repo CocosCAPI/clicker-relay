@@ -6,6 +6,12 @@ const PORT = process.env.PORT || 8080;
 const MATCH_TIME = 170; // seconds of clicking
 const COUNTDOWN = 10;   // seconds between "ready" and the start
 
+// BELT: the only belts a client is allowed to claim
+const BELTS = ["white", "yellow", "orange", "green", "blue", "purple", "brown", "red", "black"];
+function cleanBelt(b) {
+  return BELTS.includes(b) ? b : "white";
+}
+
 // Plain HTTP answer so the host (and you, in a browser) can check it's alive.
 const server = http.createServer((req, res) => {
   res.writeHead(200, { "Content-Type": "text/plain" });
@@ -54,6 +60,7 @@ function startMatch(room) {
 
 wss.on("connection", (ws) => {
   ws.room = null;
+  ws.belt = "white"; // BELT
   ws.isAlive = true;
   ws.on("pong", () => { ws.isAlive = true; });
 
@@ -66,6 +73,7 @@ wss.on("connection", (ws) => {
       if (!code) return send(ws, { t: "error", msg: "Enter a code first" });
       leave(ws);
       if (rooms.has(code)) return send(ws, { t: "error", msg: "That room already exists" });
+      ws.belt = cleanBelt(msg.belt); // BELT
       const room = { code, host: ws, guest: null, running: false,
                      scores: { host: 0, guest: 0 }, timers: [] };
       rooms.set(code, room);
@@ -78,10 +86,12 @@ wss.on("connection", (ws) => {
       const room = rooms.get(code);
       if (!room) return send(ws, { t: "error", msg: "Room doesn't exist" });
       if (room.guest) return send(ws, { t: "error", msg: "Room is full" });
+      ws.belt = cleanBelt(msg.belt); // BELT
       room.guest = ws;
       ws.room = room;
-      send(room.host, { t: "ready", code });
-      send(room.guest, { t: "ready", code });
+      // BELT: each player gets the OTHER player's belt
+      send(room.host,  { t: "ready", code, opponent_belt: room.guest.belt });
+      send(room.guest, { t: "ready", code, opponent_belt: room.host.belt });
       startMatch(room);
 
     } else if (msg.t === "click") {
