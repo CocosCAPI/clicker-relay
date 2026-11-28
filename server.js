@@ -12,6 +12,14 @@ function cleanBelt(b) {
   return BELTS.includes(b) ? b : "white";
 }
 
+// BOOST: neurons per click = BASE_PER_CLICK + belt tier.
+// Must match "Neurons Per Click" in the multiplayer scene (12).
+const BASE_PER_CLICK = 12;
+function cleanTier(t) {
+  t = Number(t);
+  return Number.isInteger(t) ? Math.min(Math.max(t, 0), BELTS.length - 1) : 0;
+}
+
 // Plain HTTP answer so the host (and you, in a browser) can check it's alive.
 const server = http.createServer((req, res) => {
   res.writeHead(200, { "Content-Type": "text/plain" });
@@ -61,6 +69,7 @@ function startMatch(room) {
 wss.on("connection", (ws) => {
   ws.room = null;
   ws.belt = "white"; // BELT
+  ws.tier = 0;       // BOOST
   ws.isAlive = true;
   ws.on("pong", () => { ws.isAlive = true; });
 
@@ -74,6 +83,7 @@ wss.on("connection", (ws) => {
       leave(ws);
       if (rooms.has(code)) return send(ws, { t: "error", msg: "That room already exists" });
       ws.belt = cleanBelt(msg.belt); // BELT
+      ws.tier = cleanTier(msg.tier); // BOOST
       const room = { code, host: ws, guest: null, running: false,
                      scores: { host: 0, guest: 0 }, timers: [] };
       rooms.set(code, room);
@@ -87,6 +97,7 @@ wss.on("connection", (ws) => {
       if (!room) return send(ws, { t: "error", msg: "Room doesn't exist" });
       if (room.guest) return send(ws, { t: "error", msg: "Room is full" });
       ws.belt = cleanBelt(msg.belt); // BELT
+      ws.tier = cleanTier(msg.tier); // BOOST
       room.guest = ws;
       ws.room = room;
       // BELT: each player gets the OTHER player's belt
@@ -97,7 +108,8 @@ wss.on("connection", (ws) => {
     } else if (msg.t === "click") {
       const room = ws.room;
       if (!room || !room.running) return;
-      room.scores[room.host === ws ? "host" : "guest"]++;
+      // BOOST: each click is worth neurons, not 1
+      room.scores[room.host === ws ? "host" : "guest"] += BASE_PER_CLICK + ws.tier;
       send(room.host,  { t: "score", mine: room.scores.host,  theirs: room.scores.guest });
       send(room.guest, { t: "score", mine: room.scores.guest, theirs: room.scores.host });
     }
